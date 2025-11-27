@@ -1,0 +1,1228 @@
+﻿<!doctype html>
+<html lang="zh-Hant">
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<title>寶可夢道館瑞士制管理</title>
+<style>
+	:root{
+		--bg:#0b0f14;
+		--card:#111827;
+		--muted:#94a3b8;
+		--fg:#e5e7eb;
+		--accent:#14b8a6;
+		--warn:#ef4444;
+		--good:#10b981;
+		--font-scale:1;
+	}
+
+	html,body{height:100%}
+	body{
+		margin:0;
+		background:var(--bg);
+		color:var(--fg);
+		font-family:ui-sans-serif,system-ui,Segoe UI,Roboto,Noto Sans TC,"PingFang TC","Microsoft JhengHei",sans-serif;
+		font-size:calc(14px * var(--font-scale));
+	}
+
+	.wrap{max-width:1120px;margin:16px auto;padding:0 12px}
+	h1{margin:12px 0 6px 0}
+	.muted{color:var(--muted)}
+	.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+	.col{display:flex;flex-direction:column;gap:8px}
+	.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+	@media(max-width:920px){.grid{grid-template-columns:1fr}}
+
+	.card{
+		background:var(--card);
+		border:1px solid rgba(148,163,184,.2);
+		border-radius:14px;
+		padding:14px
+	}
+
+	.btn{
+		background:#1f2937;
+		color:#e5e7eb;
+		border:1px solid rgba(148,163,184,.25);
+		border-radius:10px;
+		padding:8px 12px;
+		cursor:pointer
+	}
+	.btn:hover{filter:brightness(1.06)}
+	.btn.primary{background:#2563eb}
+	.btn.good{background:var(--good)}
+	.btn.warn{background:#b45309}
+	.btn.ghost{background:transparent}
+
+	.small{font-size:calc(12px * var(--font-scale));}
+
+	.pill{
+		padding:2px 8px;
+		border-radius:999px;
+		background:#1f2937;
+		border:1px solid rgba(148,163,184,.3);
+		font-size:12px;
+	}
+
+	table{width:100%;border-collapse:collapse}
+	th,td{
+		padding:8px;
+		border-bottom:1px solid rgba(148,163,184,.2);
+		vertical-align:top
+	}
+
+	input[type="text"], input[type="number"], textarea{
+		background:#0f172a;
+		color:#e5e7eb;
+		border:1px solid rgba(148,163,184,.25);
+		border-radius:10px;
+		padding:8px;
+	}
+	textarea#bulk{min-height:120px;width:100%}
+
+	.nowrap{white-space:nowrap}
+	details>summary{cursor:pointer;user-select:none}
+
+	/* 強化 ID / 姓名顯示 */
+	.badge-id{
+		display:inline-block;
+		font: 700 calc(13px * var(--font-scale))/1 ui-monospace, Menlo, Consolas, monospace;
+		letter-spacing:.3px;
+		padding:2px 8px;
+		border-radius:999px;
+		background:#0f172a;
+		border:1px solid rgba(148,163,184,.35);
+		color:#e2e8f0;
+	}
+	.name-strong{
+		font-size:calc(16px * var(--font-scale));
+		font-weight:700;
+		letter-spacing:.2px;
+	}
+	.name-dim{ color:var(--muted) }
+
+	/* 對戰卡片行距 */
+	.match-line{
+		display:flex;
+		align-items:center;
+		gap:8px;
+		flex-wrap:wrap;
+	}
+	.btn-win{
+		display:flex;
+		flex-direction:column;
+		align-items:flex-start;
+		gap:2px;
+		text-align:left;
+		min-width:220px;
+	}
+	.btn-label-main{
+		display:flex;
+		align-items:center;
+		gap:6px;
+	}
+	.btn-label-sub{
+		font-size:12px;
+		opacity:.9;
+	}
+	.btn-win .badge-id{
+		font-size:calc(12px * var(--font-scale));
+		padding:1px 7px;
+	}
+	.btn-win .name-strong{
+		font-size:calc(14px * var(--font-scale));
+	}
+</style>
+</head>
+<body>
+	<div class="wrap">
+		<h1>寶可夢道館瑞士制管理</h1>
+		<div class="muted">支援：批次加入玩家、手動調整配對、雙敗、棄權／復出、快速查桌、座位表投影、CSV 匯出、JSON 存取</div>
+
+		<div class="card">
+			<div class="row">
+				<input id="eventName" placeholder="賽事名稱（可留空）" style="flex:1;min-width:220px" />
+				<span class="pill">玩家：<span id="playerCount">0</span></span>
+				<span class="pill">建議輪數：<b id="suggestedRounds">1</b></span>
+				<label class="row">設定輪數：<input id="roundsInput" type="number" value="1" min="1" style="width:72px" /></label>
+				<button class="btn" id="applyRounds">套用</button>
+				<button class="btn primary" id="makePairs">產生下一輪對戰</button>
+				<button class="btn warn" id="editPairs">手動調整配對</button>
+				<button class="btn" id="shufflePlayers">隨機洗牌（抽籤）</button>
+				<label class="row small">字體：
+				<select id="fontSize">
+				<option value="0.9">小</option>
+				<option value="1" selected>中</option>
+				<option value="1.15">大</option>
+				<option value="1.3">特大</option>
+				</select>
+				</label>
+				<button class="btn good" id="exportCsv">匯出 CSV</button>
+				<button class="btn" id="exportSave">存檔</button>
+				<button class="btn" id="importSave">讀取存檔</button>
+				<input id="importFile" type="file" accept=".json" style="display:none" />
+				<button class="btn ghost" id="resetEvent">重置賽事（保留玩家）</button>
+			</div>
+		</div>
+
+		<div class="grid">
+			<div class="col">
+				<div class="card">
+					<h2>加入玩家</h2>
+					<div class="small muted">每行支援：<code>ID 名稱</code>、<code>ID, 名稱</code>、<code>ID，名稱</code>、<code>ID[TAB]名稱</code></div>
+					<textarea id="bulk" placeholder="P0001 Pikachu&#10;P0002, Charizard&#10;P0003，Mewtwo&#10;P0004	Snorlax"></textarea>
+					<div class="row">
+						<button class="btn" id="parse">加入這些玩家</button>
+						<button class="btn ghost" id="clearAll">清空玩家</button>
+					</div>
+				</div>
+
+				<div class="card" id="pairingsCard">
+					<h2>對戰配對（當前輪）</h2>
+					<div id="roundInfo" class="muted small">尚未產生配對</div>
+					<div id="pairings"></div>
+				</div>
+
+				<div class="card" id="historyCard">
+					<h2>歷史對戰／修改結果</h2>
+					<div class="small muted">可展開前面任何一輪，直接變更對局結果（即改即算）。</div>
+					<div id="history"></div>
+				</div>
+			</div>
+
+			<div class="col">
+				<div class="card" id="lookupCard">
+					<h2>快速查桌</h2>
+					<div class="row">
+						<input id="tableSearch" placeholder="輸入 Player ID 或 名稱的一部分" style="flex:1;min-width:240px" />
+						<button class="btn" id="btnLookup">查詢</button>
+						<button class="btn ghost" id="btnSeating">開啟座位表（投影）</button>
+					</div>
+					<p class="small muted" id="lookupHint">支援部分名稱；若重名會列出所有相符玩家。</p>
+					<div id="lookupResult" class="row" style="margin-top:8px"></div>
+					<div id="lookupList" style="margin-top:8px"></div>
+				</div>
+
+				<div class="card">
+					<h2>排名</h2>
+					<div id="standings"></div>
+				</div>
+				
+			</div>
+		</div>
+
+		<div class="card">
+			<h2>玩家名單</h2>
+			<table id="playersTable">
+				<thead>
+					<tr><th>#</th><th>Player ID</th><th>Alphabet Name</th><th>MP</th><th>Buchholz</th><th>Cumulative</th><th class="nowrap">操作</th></tr>
+				</thead>
+				<tbody></tbody>
+			</table>
+		</div>
+	</div>
+
+<script>
+(function(){
+	var WIN_POINTS=3, LOSS_POINTS=0, DOUBLE_LOSS_POINTS=0, BYE_POINTS=3;
+	var editingPairings=false;
+	var state = loadState() || { eventName:'', players:[], round:0, roundsPlanned:1, pairings:[], fontScale:1 };
+	var els={};
+
+	function byId(id){ return document.getElementById(id); }
+	function refreshEls(){
+		els.bulk=byId('bulk'); els.parse=byId('parse'); els.clearAll=byId('clearAll');
+		var pt=byId('playersTable'); els.playersTable=pt?pt.querySelector('tbody'):null;
+		els.playerCount=byId('playerCount'); els.suggestedRounds=byId('suggestedRounds'); els.roundsInput=byId('roundsInput'); els.applyRounds=byId('applyRounds');
+		els.makePairs=byId('makePairs'); els.pairings=byId('pairings'); els.roundInfo=byId('roundInfo'); els.standings=byId('standings');
+		els.exportCsv=byId('exportCsv'); els.resetEvent=byId('resetEvent'); els.exportSave=byId('exportSave'); els.importSave=byId('importSave'); els.importFile=byId('importFile');
+		els.eventName=byId('eventName'); els.tableSearch=byId('tableSearch'); els.btnLookup=byId('btnLookup'); els.btnSeating=byId('btnSeating'); els.lookupResult=byId('lookupResult'); els.lookupList=byId('lookupList');
+		els.editPairs=byId('editPairs'); els.shufflePlayers=byId('shufflePlayers'); els.history=byId('history');els.fontSize = byId('fontSize');
+	}
+	function saveState(){ localStorage.setItem('poke_swiss', JSON.stringify(state)); }
+	function loadState(){ try{ return JSON.parse(localStorage.getItem('poke_swiss')||'null'); }catch(e){ return null; } }
+	function esc(s){ return String(s||'').replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c];}); }
+	function normalizePlayers(){
+		if(!Array.isArray(state.players)) state.players=[];
+		for(var i=0;i<state.players.length;i++){
+			var p=state.players[i];
+			if(!Array.isArray(p.opponents)) p.opponents=[];
+			if(!Array.isArray(p.results)) p.results=[];
+			if(typeof p.points!=='number') p.points=0;
+			if(typeof p.buchholz!=='number') p.buchholz=0;
+			if(typeof p.cumulative!=='number') p.cumulative=0;
+			if(typeof p.dropped!=='boolean') p.dropped=false;
+			if(typeof p.seed!=='number') p.seed=i+1;
+			// 確保累進分歷史記錄是陣列，以利於舊存檔載入
+			if(!Array.isArray(p.cumulativeHistory)) p.cumulativeHistory=[];
+		}
+	}
+	function getPlayer(id){ for(var i=0;i<state.players.length;i++){ if(state.players[i].id===id) return state.players[i]; } return null; }
+	function applyFontScale(){
+		var s = state.fontScale || 1;
+		document.documentElement.style.setProperty('--font-scale', s);
+		if(els.fontSize){
+			// 保證選單顯示跟 state 一致
+			els.fontSize.value = String(s);
+		}
+	}
+
+	function bindCoreHandlers(){
+		refreshEls();
+		if(els.parse && !els.parse.__bound){ els.parse.__bound=true; els.parse.addEventListener('click', onBulkAdd); }
+		if(els.clearAll && !els.clearAll.__bound){ els.clearAll.__bound=true; els.clearAll.addEventListener('click', function(){ if(confirm('確定要清空玩家名單？')){ state.players=[]; state.round=0; state.pairings=[]; saveState(); renderAll(); } }); }
+		if(els.applyRounds && !els.applyRounds.__bound){ els.applyRounds.__bound=true; els.applyRounds.addEventListener('click', function(){ state.roundsPlanned=Math.max(1,parseInt(els.roundsInput.value||'1',10)); saveState(); renderAll(); }); }
+		if(els.makePairs && !els.makePairs.__bound){ els.makePairs.__bound=true; els.makePairs.addEventListener('click', onMakePairs); }
+		if(els.exportCsv && !els.exportCsv.__bound){ els.exportCsv.__bound=true; els.exportCsv.addEventListener('click', onExportCsv); }
+		if(els.resetEvent && !els.resetEvent.__bound){ els.resetEvent.__bound=true; els.resetEvent.addEventListener('click', function(){ if(confirm('重置整個賽事（保留玩家）？這會清除所有對戰與積分。')) resetEvent(); }); }
+		if(els.eventName && !els.eventName.__bound){ els.eventName.__bound=true; els.eventName.addEventListener('input', function(){ state.eventName=els.eventName.value; saveState(); }); }
+		if(els.exportSave && !els.exportSave.__bound){ els.exportSave.__bound=true; els.exportSave.addEventListener('click', onExportSave); }
+		if(els.importSave && !els.importSave.__bound){ els.importSave.__bound=true; els.importSave.addEventListener('click', function(){ if(els.importFile) els.importFile.click(); }); }
+		if(els.importFile && !els.importFile.__bound){ els.importFile.__bound=true; els.importFile.addEventListener('change', onImportSave); }
+		if(els.btnLookup && !els.btnLookup.__bound){ els.btnLookup.__bound=true; els.btnLookup.addEventListener('click', doLookup); }
+		if(els.tableSearch && !els.tableSearch.__bound){ els.tableSearch.__bound=true; els.tableSearch.addEventListener('keydown', function(e){ if(e.key==='Enter') doLookup(); }); }
+		if(els.btnSeating && !els.btnSeating.__bound){ els.btnSeating.__bound=true; els.btnSeating.addEventListener('click', openSeatingBoard); }
+		if(els.editPairs && !els.editPairs.__bound){ els.editPairs.__bound=true; els.editPairs.addEventListener('click', function(){ if(!state.round){ alert('尚未有配對可調整'); return; } editingPairings=!editingPairings; renderAll(); }); }
+		if(els.shufflePlayers && !els.shufflePlayers.__bound){ els.shufflePlayers.__bound=true; els.shufflePlayers.addEventListener('click', onShuffleSeeds); }
+		if(els.fontSize && !els.fontSize.__bound){
+			els.fontSize.__bound = true;
+			els.fontSize.addEventListener('change', function(){
+			var v = parseFloat(this.value) || 1;
+			state.fontScale = v;
+			saveState();
+			applyFontScale();
+			});
+		}
+
+		// —— 事件委派（避免每次 render 重綁） ——
+		if(!document.__delegated){
+			document.__delegated = true;
+			document.addEventListener('click', function(e){
+				var t = e.target;
+				if(!t) return;
+				if(t.matches('[data-result]')){
+					var r = parseInt(t.getAttribute('data-round'),10);
+					var i = parseInt(t.getAttribute('data-table'),10);
+					var v = t.getAttribute('data-result');
+					recordResult(r,i,v);
+				}else if(t.matches('[data-reset]')){
+					var r2 = parseInt(t.getAttribute('data-round'),10);
+					var i2 = parseInt(t.getAttribute('data-table'),10);
+					recordResult(r2,i2,'CLR');
+				}else if(t.id==='saveEditedPairs'){
+					saveEditedPairings();
+				}else if(t.id==='cancelEditedPairs'){
+					editingPairings=false; renderAll();
+				}
+			}, false);
+		}
+	}
+
+	function onBulkAdd(){
+		try{
+			var raw = els.bulk && typeof els.bulk.value==='string' ? els.bulk.value : '';
+			raw = String(raw).replace(/[\u200B-\u200D\uFEFF]/g,'').replace(/\r/g,'');
+			var lines = raw.split(/\n/).map(function(s){return s.trim();}).filter(Boolean);
+			if(!lines.length){ alert('請先在上方方框貼上玩家資料'); return; }
+			var nextSeedBase = state.players.length; var seen={}; state.players.forEach(function(p){seen[p.id]=1;});
+			var added=0;
+			for(var i=0;i<lines.length;i++){
+				var line=lines[i], id='', name='';
+				if(line.indexOf('\t')>=0){ var ab=line.split('\t'); id=(ab[0]||'').trim(); name=(ab[1]||'').trim(); }
+				else if(line.indexOf(',')>=0){ var ab2=line.split(','); id=(ab2[0]||'').trim(); name=(ab2[1]||'').trim(); }
+				else if(line.indexOf('，')>=0){ var ab3=line.split('，'); id=(ab3[0]||'').trim(); name=(ab3[1]||'').trim(); }
+				else { var parts=line.split(/\s+/); id=(parts.shift()||'').trim(); name=(parts.join(' ')||'').trim(); }
+				if(!id) continue; if(seen[id]) continue; seen[id]=1;
+				state.players.push({ id:id, name:name, points:0, opponents:[], results:[], seed: nextSeedBase + added + 1, buchholz:0, cumulative:0, dropped:false, cumulativeHistory:[] });
+				added++;
+			}
+			if(els.bulk) els.bulk.value='';
+			if(!added){ alert('沒有新增任何玩家（可能是重複的 ID 或格式無效）。'); }
+			normalizePlayers(); recomputeFromScratch(); saveState(); renderAll();
+		}catch(err){ console.error(err); alert('加入玩家時發生錯誤：'+(err&&err.message?err.message:String(err))); }
+	}
+
+	function comparePlayers(a,b){
+		if(b.points!==a.points) return b.points-a.points;
+		if((b.buchholz||0)!==(a.buchholz||0)) return (b.buchholz||0)-(a.buchholz||0);
+		if((b.cumulative||0)!==(a.cumulative||0)) return (b.cumulative||0)-(a.cumulative||0);
+		return (a.seed||0)-(b.seed||0);
+	}
+
+	function swissPairings(players){
+	// 只取未棄權玩家並依目前排名排序
+	var active = players.filter(function(p){return !p.dropped;});
+	var ranked = active.slice().sort(comparePlayers);
+
+	// 決定本輪 BYE（盡量給到目前沒拿過 BYE 且分數最低的人）
+	var byeId = null;
+	if(ranked.length % 2 === 1){
+		var cand = ranked.slice().sort(function(a,b){return (a.points||0)-(b.points||0);});
+		var pick = null;
+		for(var i=0;i<cand.length;i++){
+			if((cand[i].opponents||[]).indexOf('BYE')===-1){ pick=cand[i]; break; }
+		}
+		if(!pick) pick=cand[0];
+		byeId = pick.id;
+	}
+
+	// 回溯法：嚴格禁止重複對手；同時盡量選分差最小
+	var pool = ranked.filter(function(p){ return p.id !== byeId; });
+
+	function havePlayed(pa, pb){
+		return (pa.opponents||[]).indexOf(pb.id)!==-1;
+	}
+	function scoreDiff(a,b){
+		return Math.abs((a.points||0)-(b.points||0));
+	}
+
+	// 建立一份 map 方便 O(1) 取得 player 物件
+	var idMap = {}; players.forEach(function(p){ idMap[p.id]=p; });
+
+	// 依目前排名由上而下嘗試配對（可調整策略）
+	var order = pool.slice();
+
+	// 回溯
+	var used = {};
+	var pairs = [];
+
+	function dfs(idx){
+		// 都配完就成功
+		if(idx >= order.length) return true;
+
+		// 找下一個還沒被用掉的人當左邊 A
+		while(idx < order.length && used[order[idx].id]) idx++;
+		if(idx >= order.length) return true;
+
+		var a = order[idx];
+		used[a.id] = true;
+
+		// 候選對手：未使用、未交手過，依分差由小到大
+		var cands = [];
+		for(var j=0;j<order.length;j++){
+			var b = order[j];
+			if(a.id===b.id || used[b.id]) continue;
+			if(!havePlayed(idMap[a.id], idMap[b.id])){
+				cands.push(b);
+			}
+		}
+		cands.sort(function(x,y){
+			return scoreDiff(a,x) - scoreDiff(a,y);
+		});
+
+		// 若完全沒有不曾交手的對手，就退一步：允許「一次」最小分差的重配（極少見）
+		// 但我們先嘗試真正的 0-rematch 解空間：若失敗再考慮這個 fallback
+		function tryWithCandidates(list){
+			for(var k=0;k<list.length;k++){
+				var b = list[k];
+				used[b.id] = true;
+				pairs.push({a:a.id, b:b.id});
+				if(dfs(idx+1)) return true;
+				pairs.pop();
+				used[b.id] = false;
+			}
+			return false;
+		}
+
+		// 先嘗試完全不重複對手
+		if(tryWithCandidates(cands)){
+			return true;
+		}
+
+		// 回溯 A
+		used[a.id] = false;
+		return false;
+	}
+
+	dfs(0);
+	if(pairs.length*2 !== pool.length){
+		alert('本輪自動配對找不到「零重配」的完整解，請改用「手動調整配對」。');
+		// 退回「同分鄰近」的半成品（避免整場停住），或直接 return 空陣列：
+		return [];
+	}
+
+	// 轉成輸出格式，桌號按照加入順序產生
+	var matches = [];
+	for(var i3=0;i3<pairs.length;i3++){
+		var m = pairs[i3];
+		matches.push({a:m.a,b:m.b,table:matches.length+1,result:null});
+	}
+
+	// BYE 放在最後一桌（重點：table 用 matches.length+1）
+	if(byeId){
+		matches.push({a:byeId,b:'BYE',table:matches.length+1,result:'BYE'});
+	}
+	return matches;
+}
+
+
+	function onMakePairs(){
+		if(state.round>0){
+			var prev=state.pairings[state.round-1]||[];
+			for(var i=0;i<prev.length;i++){
+				if(!prev[i].result){
+					alert('上一輪尚有未填結果的對局');
+					return;
+				}
+			}
+		}
+		if(state.round>=state.roundsPlanned){
+			if(!confirm('已達設定輪數，仍要再產生一輪嗎？')) return;
+		}
+		var roundNum=state.round+1;
+		var pairs=swissPairings(state.players);
+
+		// ★ 如果這輪沒有產生任何配對，就不要前進
+		if(!pairs || !pairs.length){
+			// swissPairings 裡已經有 alert，這裡只是雙保險
+			return;
+		}
+
+		state.pairings[state.round]=pairs;
+		state.round=roundNum;
+		saveState();
+		renderAll();
+	}
+
+	function recordResult(roundIndex, tableIndex, result){
+		var m=(state.pairings[roundIndex]||[])[tableIndex]; if(!m) return;
+		if(m.result==='BYE') return;
+		m.result=(result==='CLR')?null:result;
+		recomputeFromScratch(); saveState(); renderAll();
+	}
+
+	function recomputeFromScratch(){
+		var idMap={};
+		state.players.forEach(function(p){
+			// 初始化/重置玩家核心數據
+			p.points=0;p.opponents=[];p.results=[];p.buchholz=0;p.cumulative=0;
+			p.cumulativeHistory=[]; // 重置累進分歷史
+			idMap[p.id]=p;
+		});
+		
+		// 逐輪計算分數和對戰紀錄
+		for(var r=0;r<state.round;r++){
+			var list=state.pairings[r]||[];
+			for(var i=0;i<list.length;i++){
+				var m=list[i], pa=idMap[m.a], pb=idMap[m.b]; // 修正點：確保 pa 和 pb 在此範圍內被宣告
+				if(m.result==='BYE'&&pa){
+					pa.points+=BYE_POINTS; pa.opponents.push('BYE'); pa.results.push('WIN');
+				} else if(m.result==='A'&&pa&&pb){
+					pa.points+=WIN_POINTS; pb.points+=LOSS_POINTS; pa.results.push('WIN'); pb.results.push('LOSS'); pa.opponents.push(pb.id); pb.opponents.push(pa.id);
+				} else if(m.result==='B'&&pa&&pb){
+					pb.points+=WIN_POINTS; pa.points+=LOSS_POINTS; pb.results.push('WIN'); pa.results.push('LOSS'); pa.opponents.push(pb.id); pb.opponents.push(pa.id);
+				} else if(m.result==='DD'&&pa&&pb){
+					pa.points+=DOUBLE_LOSS_POINTS; pb.points+=DOUBLE_LOSS_POINTS; pa.results.push('DLOSS'); pb.results.push('DLOSS'); pa.opponents.push(pb.id); pb.opponents.push(pa.id);
+				}
+			}
+			
+			// 累進積分：記錄本輪結束時的總積分
+			state.players.forEach(function(p){
+				p.cumulativeHistory.push(p.points);
+			});
+		}
+		
+		// 計算最終累進積分總和
+		state.players.forEach(function(p){
+			p.cumulative = (p.cumulativeHistory || []).reduce(function(acc, val){ return acc + val; }, 0);
+		});
+		recomputeTiebreakers(); // 僅計算 Buchholz
+	}
+
+	function recomputeTiebreakers(){
+		var idMap={}; state.players.forEach(function(p){ idMap[p.id]=p; });
+		state.players.forEach(function(p){
+			// Buchholz Score (Opponent Match Points)
+			var s=0; (p.opponents||[]).forEach(function(oid){ if(oid!=='BYE') s += (idMap[oid]&&idMap[oid].points)||0; });
+			p.buchholz=s;
+		});
+	}
+
+	function onExportCsv(){
+		var ranked = state.players.slice().sort(comparePlayers);
+		// 只保留四個欄位
+		var rows = [["Ranking","Player ID","Alphabet Name","Match Point"]];
+		ranked.forEach(function(p,i){
+			rows.push([ String(i+1), p.id, p.name || '', String(p.points) ]);
+		});
+
+		var csv = rows.map(function(r){
+			return r.map(function(cell){
+				var s = String(cell || '');
+				return /[",\n]/.test(s) ? '"' + s.replace(/"/g,'""') + '"' : s;
+			}).join(',');
+		}).join('\n');
+
+		var blob = new Blob(["\ufeff"+csv], {type:'text/csv;charset=utf-8;'});
+		var a = document.createElement('a');
+		var dt = new Date();
+		var fname = (state.eventName ? state.eventName + '_' : '')
+					+ 'standings_round' + state.round + '_'
+					+ dt.getFullYear()
+					+ String(dt.getMonth()+1).padStart(2,'0')
+					+ String(dt.getDate()).padStart(2,'0') + '.csv';
+		a.href = URL.createObjectURL(blob);
+		a.download = fname;
+		a.click();
+		URL.revokeObjectURL(a.href);
+	}
+
+
+	function onExportSave(){
+		try{
+			var payload=JSON.stringify({version:2,savedAt:new Date().toISOString(),state:state},null,2);
+			var blob=new Blob([payload],{type:'application/json'});
+			var a=document.createElement('a'); var dt=new Date();
+			var fname=(state.eventName? state.eventName+'_' : '')+'save_round'+state.round+'_'+dt.getFullYear()+String(dt.getMonth()+1).padStart(2,'0')+String(dt.getDate()).padStart(2,'0')+'.json';
+			a.href=URL.createObjectURL(blob); a.download=fname; a.click(); URL.revokeObjectURL(a.href);
+		}catch(e){ alert('匯出失敗：'+(e&&e.message?e.message:String(e))); }
+	}
+
+	function onImportSave(evt){
+		var file=evt.target && evt.target.files && evt.target.files[0]; if(!file) return;
+		var reader=new FileReader();
+		reader.onload=function(){
+			try{
+				var obj=JSON.parse(String(reader.result||'{}'));
+				var newState=obj.state||obj;
+				if(!newState||!Array.isArray(newState.players)) throw new Error('檔案內容不完整或格式錯誤');
+				if(!confirm('載入存檔會覆蓋目前的比賽進度，確定要覆蓋嗎？')){ evt.target.value=''; return; }
+				state.eventName=newState.eventName||'';
+				state.players=Array.isArray(newState.players)?newState.players:[];
+				state.round=Number(newState.round||0);
+				state.roundsPlanned=Number(newState.roundsPlanned||1);
+				state.pairings=Array.isArray(newState.pairings)?newState.pairings:[];
+				state.fontScale = Number(newState.fontScale || 1);
+				normalizePlayers(); recomputeFromScratch(); saveState(); renderAll();
+				alert('已成功載入存檔');
+			}catch(e){ alert('讀取存檔失敗：'+(e&&e.message?e.message:String(e))); }
+			finally{ evt.target.value=''; }
+		};
+		reader.readAsText(file,'utf-8');
+	}
+
+	function resetEvent(){
+		state.players.forEach(function(p){ p.points=0;p.opponents=[];p.results=[];p.buchholz=0;p.cumulative=0; p.cumulativeHistory=[]; });
+		state.pairings=[]; state.round=0; saveState(); renderAll();
+	}
+
+	function completedRounds(){
+		var c=0;
+		for(var i=0;i<state.pairings.length;i++){
+			var r=state.pairings[i]; if(!r) continue;
+			var all=true; for(var j=0;j<r.length;j++){ if(!r[j].result){ all=false; break; } }
+			if(all) c++;
+		}
+		return c;
+	}
+
+	function renderMatch(roundIndex, tableIndex, m){
+		var pa=getPlayer(m.a), pb=getPlayer(m.b);
+
+		// —— BYE 桌維持顯示玩家資訊 ——
+		if(m.result==='BYE'){
+			return (
+				'<div class="card" id="table-'+(roundIndex+1)+'-'+(tableIndex+1)+'" style="margin-bottom:12px">'+
+				  '<div class="match-line">'+
+					'<b>桌次 '+(tableIndex+1)+'</b>'+
+					'｜<span class="badge-id">'+esc(pa&&pa.id||'')+'</span>'+
+					'<span class="name-strong"> '+esc(pa&&pa.name||'')+'</span>'+
+					' <span class="pill">BYE +'+BYE_POINTS+'</span>'+
+				  '</div>'+
+				'</div>'
+			);
+		}
+
+		// —— 結果顯示內容（只用在下方按鈕區，排在清除結果後面） ——
+		var resultTag = '';
+		if(m.result === 'A' && pa){
+			resultTag =
+				'<span class="pill">結果：'+
+				  '<span class="badge-id">'+esc(pa.id)+'</span>'+
+				  '<span class="name-strong"> '+esc(pa.name||'')+'</span> 勝</span>';
+		} else if(m.result === 'B' && pb){
+			resultTag =
+				'<span class="pill">結果：'+
+				  '<span class="badge-id">'+esc(pb.id)+'</span>'+
+				  '<span class="name-strong"> '+esc(pb.name||'')+'</span> 勝</span>';
+		} else if(m.result === 'DD'){
+			resultTag = '<span class="pill">結果：雙敗（0 / 0）</span>';
+		}
+
+		var s='';
+		s+='<div class="card" id="table-'+(roundIndex+1)+'-'+(tableIndex+1)+'" style="margin-bottom:12px">';
+
+		// 上排：只顯示桌次
+		s+='<div class="row" style="justify-content:space-between">';
+		s+='<div class="match-line"><b>桌次 '+(tableIndex+1)+'</b></div>';
+		s+='</div>';
+
+		// 下排：操作按鈕（ID＋姓名加強排版）＋ 清除結果 ＋ 結果顯示
+		s+='<div class="row" style="margin-top:6px">';
+
+		// A 勝按鈕
+		s+='<button class="btn good btn-win" data-round="'+roundIndex+'" data-table="'+tableIndex+'" data-result="A">'
+		 + '<div class="btn-label-main">'
+		 +	'<span class="badge-id">'+esc(pa&&pa.id||'')+'</span>'
+		 +	'<span class="name-strong">'+esc(pa&&pa.name||'')+'</span>'
+		 + '</div>'
+		 + '<div class="btn-label-sub">勝（+'+WIN_POINTS+'）</div>'
+		 +'</button>';
+
+		// B 勝按鈕
+		s+='<button class="btn good btn-win" data-round="'+roundIndex+'" data-table="'+tableIndex+'" data-result="B">'
+		 + '<div class="btn-label-main">'
+		 +	'<span class="badge-id">'+esc(pb&&pb.id||'')+'</span>'
+		 +	'<span class="name-strong">'+esc(pb&&pb.name||'')+'</span>'
+		 + '</div>'
+		 + '<div class="btn-label-sub">勝（+'+WIN_POINTS+'）</div>'
+		 +'</button>';
+
+		// 雙敗按鈕
+		s+='<button class="btn" data-round="'+roundIndex+'" data-table="'+tableIndex+'" data-result="DD">雙敗（0 / 0）</button>';
+
+		// 清除結果按鈕
+		if(m.result){
+			s+='<button class="btn ghost" data-round="'+roundIndex+'" data-table="'+tableIndex+'" data-reset="1">清除結果</button>';
+			// 清除結果後面接上結果顯示
+			if(resultTag){
+				s+='<span>'+resultTag+'</span>';
+			}
+		}
+
+		s+='</div>'; // row
+		s+='</div>'; // card
+		return s;
+	}
+
+	function renderHistory(){
+		if(!els.history) return;
+		if(state.round===0){ els.history.innerHTML='<div class="muted small">尚無歷史對戰</div>'; return; }
+		var h='';
+		for(var r=0;r<state.round;r++){
+			var list=state.pairings[r]||[];
+			var b='';
+			for(var t=0;t<list.length;t++){
+				b+=renderMatch(r,t,list[t]);
+			}
+			var openAttr = (r===state.round-1)? ' open' : '';
+			h+= '<details'+openAttr+' class="card" style="margin-bottom:8px">'
+			 +	'<summary><b>第 '+(r+1)+' 輪</b>（共 '+list.length+' 桌）</summary>'
+			 +	'<div style="margin-top:8px">'+b+'</div>'
+			 + '</details>';
+		}
+		els.history.innerHTML = h;
+	}
+
+	function _suggestRounds(n){
+		if(n<=8) return 3;
+		if(n<=16) return 4;
+		if(n<=32) return 5;
+		if(n<=64) return 6;
+		if(n<=128) return 7;
+		return 8;
+	}
+
+	function renderAll(){
+		bindCoreHandlers();
+		applyFontScale();
+		var n=state.players.length;
+		var suggested = n ? _suggestRounds(n) : 1;
+		if(els.suggestedRounds) els.suggestedRounds.textContent=suggested;
+		if(!state.roundsPlanned) state.roundsPlanned=suggested;
+		if(els.roundsInput) els.roundsInput.value=state.roundsPlanned;
+		if(els.playerCount) els.playerCount.textContent=String(n);
+		if(els.eventName) els.eventName.value=state.eventName||'';
+
+		var ranked=state.players.slice().sort(comparePlayers);
+
+		// 玩家表
+		var tb=''; for(var i=0;i<ranked.length;i++){
+			var p=ranked[i];
+			tb+='<tr>'
+			  +'<td>'+(i+1)+'</td>'
+			  +'<td><input data-id="'+esc(p.id)+'" data-field="id" value="'+esc(p.id)+'" /></td>'
+			  +'<td><input data-id="'+esc(p.id)+'" data-field="name" value="'+esc(p.name||'')+'" placeholder="名稱"/></td>'
+			  +'<td>'+(p.points||0)+'</td>'
+			  +'<td>'+(p.buchholz||0)+'</td>'
+			  +'<td>'+(p.cumulative||0)+'</td>'
+			  +'<td>'+(p.dropped? '<span class="pill">已棄權</span> ':'')
+			  +'<button class="btn ghost small" data-action="drop" data-id="'+esc(p.id)+'">'+(p.dropped?'復出':'棄權')+'</button> '
+			  +'<button class="btn ghost small" data-action="remove" data-id="'+esc(p.id)+'">刪除</button></td>'
+			  +'</tr>';
+		}
+		if(els.playersTable) els.playersTable.innerHTML=tb;
+
+		if(els.playersTable){
+			var inputs=els.playersTable.querySelectorAll('input');
+			for(var k=0;k<inputs.length;k++){
+				inputs[k].addEventListener('change', function(e){
+					var id=e.target.getAttribute('data-id');
+					var field=e.target.getAttribute('data-field');
+					var player=getPlayer(id); if(!player) return;
+					if(field==='id'){
+						var newId=e.target.value.trim();
+						if(!newId){ alert('ID 不可為空'); e.target.value=player.id; return; }
+						if(newId!==id && state.players.some(function(pp){return pp.id===newId;})){ alert('此 ID 已存在'); e.target.value=player.id; return; }
+						state.players.forEach(function(pp){ pp.opponents=(pp.opponents||[]).map(function(x){ return x===id? newId:x; }); });
+						player.id=newId;
+						state.pairings.forEach(function(round){ if(!round) return; round.forEach(function(m){ if(m.a===id) m.a=newId; if(m.b===id) m.b=newId; }); });
+					} else if(field==='name'){ player.name=e.target.value.trim(); }
+					saveState(); renderAll();
+				});
+			}
+			var removes=els.playersTable.querySelectorAll('button[data-action="remove"]');
+			for(var rmi=0;rmi<removes.length;rmi++){
+				removes[rmi].addEventListener('click', function(){
+					var id=this.getAttribute('data-id');
+					if(!confirm('刪除此玩家？若已開賽，建議勿刪除。')) return;
+					var idx=state.players.findIndex(function(pp){return pp.id===id;});
+					if(idx>=0){ state.players.splice(idx,1); saveState(); renderAll(); }
+				});
+			}
+			var drops=els.playersTable.querySelectorAll('button[data-action="drop"]');
+			for(var dpi=0; dpi<drops.length; dpi++){
+				drops[dpi].addEventListener('click', function(){
+					var id=this.getAttribute('data-id'); var p=getPlayer(id); if(!p) return;
+					if(!p.dropped){
+						if(!confirm('確認讓玩家 '+p.id+' '+(p.name||'')+' 棄權？')) return;
+						p.dropped=true;
+						if(state.round>0){
+							var list=state.pairings[state.round-1]||[];
+							for(var i=0;i<list.length;i++){
+								var m=list[i]; if(!m||m.result) continue;
+								if(m.a===id && m.b!=='BYE'){ m.result='B'; }
+								else if(m.b===id && m.a!=='BYE'){ m.result='A'; }
+							}
+						}
+					} else {
+						if(!confirm('讓玩家 '+p.id+' '+(p.name||'')+' 復出？')) return;
+						p.dropped=false;
+					}
+					recomputeFromScratch(); saveState(); renderAll();
+				});
+			}
+		}
+
+		// 當前配對 / 手動配對
+		if(state.round===0){
+			if(els.roundInfo) els.roundInfo.textContent='尚未產生配對';
+			if(els.pairings) els.pairings.innerHTML='';
+		} else {
+			if(els.roundInfo) els.roundInfo.textContent='第 '+state.round+' 輪（共 '+state.roundsPlanned+' 輪，已完成 '+completedRounds()+' 輪）';
+			var list=state.pairings[state.round-1]||[];
+			var html='';
+			if(editingPairings){
+				html+='<div class="row" style="margin-bottom:8px">'
+				  + '<button class="btn good" id="saveEditedPairs">儲存調整</button>'
+				  + '<button class="btn ghost" id="cancelEditedPairs">取消</button>'
+				  + '<span class="small muted">（直接輸入 Player ID，可自動提示；每位玩家僅可出現一次，若要 BYE 請輸入 BYE）</span>'
+				  +'</div>';
+
+				// datalist（未棄權玩家）
+				var activeMap={};
+				(state.players||[]).forEach(function(p){
+					if(!p.dropped) activeMap[p.id]=p;
+				});
+				var allIds=Object.keys(activeMap).sort();
+				var dlId='dl-players';
+				var dlHtml='<datalist id="'+dlId+'">';
+				for(var i0=0;i0<allIds.length;i0++){
+					var pid = allIds[i0];
+					var nm = activeMap[pid] && activeMap[pid].name || '';
+					dlHtml+='<option value="'+esc(pid)+'">'+esc(pid+' '+nm)+'</option>';
+				}
+				dlHtml+='</datalist>';
+				html+=dlHtml;
+
+				// 每桌都用同一種：兩個輸入框，BYE 桌把一邊預設為 BYE
+				for(var t=0;t<list.length;t++){
+					var m=list[t];
+					var aVal = m.a || '';
+					var bVal = m.b || '';
+
+					if(m.result === 'BYE'){
+						aVal = m.a || '';
+						bVal = 'BYE';
+					}
+
+					html+='<div class="card" style="margin-bottom:8px">'
+						+ '<div class="row" style="gap:10px;align-items:center">'
+						+	'<b>桌次 '+(t+1)+'</b>'
+						+	'<input class="pair-edit-input" list="'+dlId+'" data-side="A" data-table="'+t+'"'
+						+	' placeholder="輸入玩家ID或 BYE" value="'+esc(aVal)+'" style="min-width:160px" />'
+						+	'<span class="muted">vs</span>'
+						+	'<input class="pair-edit-input" list="'+dlId+'" data-side="B" data-table="'+t+'"'
+						+	' placeholder="輸入玩家ID或 BYE" value="'+esc(bVal)+'" style="min-width:160px" />'
+						+ '</div>'
+						+ '<div class="small muted">提示：輸入玩家 ID 會自動帶出名稱；若要指定 BYE，請在任一欄輸入「BYE」（不分大小寫）。</div>'
+						+'</div>';
+				}
+
+				if(els.pairings) els.pairings.innerHTML=html;
+			} else {
+				for(var t2=0;t2<list.length;t2++) html+=renderMatch(state.round-1,t2,list[t2]);
+				if(els.pairings) els.pairings.innerHTML=html;
+			}
+		}
+
+		// 歷史對戰（可修改過去結果）
+		renderHistory();
+
+		// 排名表
+		var ranked2=state.players.slice().sort(comparePlayers);
+		var rows='';
+		for(var sidx=0;sidx<ranked2.length;sidx++){
+			var sp=ranked2[sidx];
+			rows += '<tr>'+
+					  '<td>'+(sidx+1)+'</td>'+
+					  '<td><span class="badge-id">'+esc(sp.id)+'</span></td>'+
+					  '<td><span class="name-strong">'+esc(sp.name||'')+'</span></td>'+
+					  '<td>'+(sp.points||0)+'</td>'+
+					  '<td class="small muted">Opp:'+(sp.buchholz||0)+'｜Cum:'+(sp.cumulative||0)+'</td>'+
+					 '</tr>';
+		}
+		if(els.standings) els.standings.innerHTML =
+			'<table><thead><tr><th>#</th><th>Player ID</th><th>Alphabet Name</th><th>MP</th><th class="nowrap">TB</th></tr></thead><tbody>'+rows+'</tbody></table>';
+	}
+
+	function findCurrentTableOf(id){
+		if(state.round<=0) return null;
+		var list=state.pairings[state.round-1]||[];
+		for(var i=0;i<list.length;i++){
+			var m=list[i];
+			if(m.result==='BYE' && m.a===id){ return { round: state.round, table: i+1, opponent: null, bye: true }; }
+			if(m.a===id || m.b===id){
+				var oppId=(m.a===id)? m.b : m.a; return { round: state.round, table: i+1, opponent: getPlayer(oppId) || null };
+			}
+		}
+		return null;
+	}
+
+	function doLookup(){
+		var q=(els.tableSearch.value||'').trim(); var box=els.lookupResult; var listBox=els.lookupList;
+		if(!q){ if(box) box.innerHTML='<span class="muted">請輸入 ID 或名稱</span>'; if(listBox) listBox.innerHTML=''; return; }
+		var qq=q.toLowerCase();
+		var exact=state.players.filter(function(x){ return String(x.id||'').toLowerCase()===qq; });
+		var partialName=state.players.filter(function(x){ return String(x.name||'').toLowerCase().indexOf(qq)>=0; });
+		var partialId=state.players.filter(function(x){ return String(x.id||'').toLowerCase().indexOf(qq)>=0; });
+		var out=[]; var seen={};
+		function pushAll(arr){ for(var i=0;i<arr.length;i++){ var p=arr[i]; if(!seen[p.id]){ seen[p.id]=1; out.push(p); } } }
+		pushAll(exact); pushAll(partialName); pushAll(partialId);
+		if(!out.length){ if(box) box.innerHTML='<span class="muted">找不到符合的玩家</span>'; if(listBox) listBox.innerHTML=''; return; }
+		if(box) box.innerHTML='<span class="muted small">找到 '+out.length+' 筆：</span>';
+		var rows='';
+		for(var i2=0;i2<out.length;i2++){
+			var p=out[i2]; var info=findCurrentTableOf(p.id); var opp=''; var desk='尚未配對'; var link='';
+			if(info){ desk='第 '+info.round+' 輪／第 <b>'+info.table+'</b> 桌'; opp = info.opponent? (esc(info.opponent.id)+' '+esc(info.opponent.name||'')) : 'BYE'; link='<a class="btn ghost small" href="#table-'+info.round+'-'+info.table+'">捲到</a>'; }
+			rows += '<tr><td>'+esc(p.id)+'</td><td>'+esc(p.name||'')+'</td><td>'+desk+'</td><td>'+opp+'</td><td>'+link+'</td></tr>';
+		}
+		if(listBox) listBox.innerHTML='<table><thead><tr><th>Player ID</th><th>名稱</th><th>桌次</th><th>對手</th><th></th></tr></thead><tbody>'+rows+'</tbody></table>';
+	}
+
+	// —— 座位表（穩定版）：子窗僅含 HTML/CSS；由父窗渲染與刷新 ——
+	function openSeatingBoard(){
+		var w = window.open('', '_blank');
+		if(!w){ alert('無法開啟新視窗，請允許彈出視窗。'); return; }
+
+		var html = '<!doctype html>\
+<html lang="zh-Hant">\
+<head>\
+	<meta charset="utf-8">\
+	<meta name="viewport" content="width=device-width, initial-scale=1">\
+	<title>座位表</title>\
+	<style>\
+		:root{\
+			--bg:#0b0f14;\
+			--card:#111827;\
+			--muted:#94a3b8;\
+			--fg:#e5e7eb;\
+			--accent:#14b8a6;\
+			--warn:#ef4444;\
+			--good:#10b981;\
+			--font-scale:'+state.fontScale+';\
+		}\
+		html,body{height:100%}\
+		body{\
+			margin:0;\
+			background:var(--bg);\
+			color:var(--fg);\
+			font-family:ui-sans-serif,system-ui,Segoe UI,Roboto,Noto Sans TC,\"PingFang TC\",\"Microsoft JhengHei\",sans-serif;\
+			font-size:calc(20px * var(--font-scale));\
+		}\
+		.wrap{max-width:1400px;margin:16px auto;padding:0 16px}\
+		h1{margin:0 0 8px 0;font-size:clamp(22px,3vw,calc(34px * var(--font-scale)))}\
+		.muted{color:var(--muted)}\
+		.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}\
+		.card{background:#111827;border:1px solid rgba(148,163,184,.2);border-radius:14px;padding:14px}\
+		.tableNo{font-size:calc(22px * var(--font-scale));\
+			font-weight:700;margin-bottom:6px}\
+		.big{font-size:calc(18px * var(--font-scale));\
+		}\
+		.footer{margin-top:12px;font-size:calc(12px * var(--font-scale))}\
+		.badge-id{\
+			display:inline-block;\
+			font: 700 calc(16px * var(--font-scale))/1 ui-monospace, Menlo, Consolas, monospace;\
+			letter-spacing:.3px;\
+			padding:2px 10px;\
+			border-radius:999px;\
+			background:#0f172a;\
+			border:1px solid rgba(148,163,184,.35);\
+			color:#e2e8f0;\
+		}\
+		.name-strong{\
+			font-size:calc(20px * var(--font-scale));\
+			font-weight:700;\
+			letter-spacing:.2px;\
+		}\
+	</style>\
+</head>\
+<body>\
+	<div class=\"wrap\">\
+		<h1>座位表<span id=\"title\"></span></h1>\
+		<div class=\"muted\" id=\"subtitle\"></div>\
+		<div id=\"board\"></div>\
+		<div class=\"footer muted\">每 15 秒自動刷新；請按 F11 進入全螢幕。</div>\
+	</div>\
+</body>\
+</html>';
+
+		w.document.open();
+		w.document.write(html);
+		w.document.close();
+
+		function escSeat(s){
+			return String(s||'').replace(/[&<>"']/g,function(c){
+				return {
+					"&":"&amp;",
+					"<":"&lt;",
+					">":"&gt;",	
+					"\"":"&quot;",
+					"'":"&#39;"
+				}[c] || c;
+			});
+		}
+
+
+		function renderSeatingInto(childWin){
+			if(!childWin || childWin.closed) return;
+			var doc = childWin.document;
+			var titleEl = doc.getElementById('title');
+			var subEl = doc.getElementById('subtitle');
+			var board = doc.getElementById('board');
+			if(!titleEl || !subEl || !board) return;
+
+			var st = {};
+			try{ st = JSON.parse(localStorage.getItem('poke_swiss')||'null') || {}; }catch(_e){ st={}; }
+
+			var title = st.eventName ? ('｜'+st.eventName) : '';
+			var subtitle = st.round ? ('第 '+st.round+' 輪 · 玩家 '+((st.players&&st.players.length)||0)+' 人') : '尚未配對';
+			titleEl.textContent = title;
+			subEl.textContent = subtitle+' ｜ 更新：'+new Date().toLocaleTimeString();
+
+			if(!st.round){
+				board.innerHTML = '<p class="muted">尚未產生配對</p>';
+				return;
+			}
+
+			var list = (st.pairings && st.pairings[st.round-1]) || [];
+			var players = {};
+			(st.players||[]).forEach(function(p){ players[p.id]=p; });
+
+			var out = '';
+			for(var i=0;i<list.length;i++){
+				var m = list[i];
+				if(m && m.result==='BYE'){
+					var pa0 = players[m.a] || {};
+					out += '<div class="card">'+
+						  '<div class="tableNo">桌 '+(i+1)+'</div>'+
+						  '<div class="big"><span class="badge-id">'+escSeat(pa0.id)+'</span> '+
+						  '<span class="name-strong">'+escSeat(pa0.name)+'</span>（BYE +'+BYE_POINTS+'）</div>'+
+						'</div>';
+				}else{
+					var pa = players[m.a]||{}, pb = players[m.b]||{};
+					out += '<div class="card">'+
+						  '<div class="tableNo">桌 '+(i+1)+'</div>'+
+						  '<div class="big"><span class="badge-id">'+escSeat(pa.id)+'</span> <span class="name-strong">'+escSeat(pa.name)+'</span></div>'+
+						  '<div class="muted">vs</div>'+
+						  '<div class="big"><span class="badge-id">'+escSeat(pb.id)+'</span> <span class="name-strong">'+escSeat(pb.name)+'</span></div>'+
+						'</div>';
+				}
+			}
+			board.innerHTML = '<div class=\"grid\">'+out+'</div>';
+		}
+
+		// 首次渲染 + 每 15 秒刷新
+		renderSeatingInto(w);
+		if(w.__seatTimer){ try{ clearInterval(w.__seatTimer); }catch(_e){} }
+		w.__seatTimer = setInterval(function(){
+			if(!w || w.closed){ try{ clearInterval(w.__seatTimer); }catch(_e){} return; }
+			renderSeatingInto(w);
+		}, 15000);
+
+		// localStorage 變更時即時刷新（跨分頁）
+		function _storageHandler(){ if(!w || w.closed) return; renderSeatingInto(w); }
+		window.addEventListener('storage', _storageHandler);
+		var unload = function(){
+			try{
+				window.removeEventListener('storage', _storageHandler);
+				if(w && w.__seatTimer) clearInterval(w.__seatTimer);
+			}catch(_e){}
+		};
+		w.addEventListener('beforeunload', unload);
+		window.addEventListener('beforeunload', unload);
+	}
+
+	function saveEditedPairings(){
+		var inputs = Array.prototype.slice.call(document.querySelectorAll('.pair-edit-input'));
+		var rawTables = {};
+		inputs.forEach(function(inp){
+			var t = parseInt(inp.getAttribute('data-table'),10);
+			var side = inp.getAttribute('data-side');
+			var val = (inp.value || '').trim();
+			rawTables[t] = rawTables[t] || {A:'', B:''};
+			rawTables[t][side] = val;
+		});
+
+		// 僅允許未棄權玩家
+		var activeMap = {};
+		(state.players||[]).forEach(function(p){ if(!p.dropped) activeMap[p.id]=p; });
+		var validIds = Object.keys(activeMap);
+
+		function isValidId(x){
+			var xl=String(x).toLowerCase();
+			for(var i=0;i<validIds.length;i++){ if(validIds[i].toLowerCase()===xl) return true; }
+			return false;
+		}
+		function toCanonicalId(x){
+			var xl=String(x).toLowerCase();
+			for(var i=0;i<validIds.length;i++){ if(validIds[i].toLowerCase()===xl) return validIds[i]; }
+			return x;
+		}
+
+		var used = {};
+		var tables = {}; // 正規化後的結果：{ tableIndex: { type:'MATCH', A, B } 或 { type:'BYE', player } }
+		var byeCount = 0;
+		var activeCount = validIds.length;
+		var BYE_WORD = 'bye';
+
+		for(var key in rawTables){
+			if(!rawTables.hasOwnProperty(key)) continue;
+			var idx = parseInt(key,10);
+			var v = rawTables[key];
+
+			var A = (v.A || '').trim();
+			var B = (v.B || '').trim();
+			var aIsBye = A && A.toLowerCase() === BYE_WORD;
+			var bIsBye = B && B.toLowerCase() === BYE_WORD;
+
+			// 兩邊都空：不允許（避免桌子遺失）
+			if(!A && !B){
+				alert('第 '+(idx+1)+' 桌沒有輸入任何玩家 ID，請檢查。');
+				return;
+			}
+
+			// 同桌兩個都 BYE，不合理
+			if(aIsBye && bIsBye){
+				alert('第 '+(idx+1)+' 桌不能同時兩個 BYE。');
+				return;
+			}
+
+			// BYE 對局
+			if(aIsBye || bIsBye){
+				byeCount++;
+				var pid = aIsBye ? B : A;
+				if(!pid){
+					alert('第 '+(idx+1)+' 桌為 BYE 對局時，必須有一位實際玩家 ID。');
+					return;
+				}
+				if(!isValidId(pid)){
+					alert('偵測到不存在或已棄權的玩家 ID：'+pid);
+					return;
+				}
+				pid = toCanonicalId(pid);
+				if(used[pid]){
+					alert('玩家 '+pid+' 在多個桌次中出現，請檢查。');
+					return;
+				}
+				used[pid] = 1;
+				tables[idx] = { type:'BYE', player: pid };
+			} else {
+				// 一般對局：必須兩邊都有玩家
+				if(!A || !B){
+					alert('第 '+(idx+1)+' 桌需輸入兩位玩家 ID（或其一為 BYE）。');
+					return;
+				}
+				if(!isValidId(A) || !isValidId(B)){
+					alert('偵測到不存在或已棄權的玩家 ID：'+A+' / '+B);
+					return;
+				}
+				A = toCanonicalId(A);
+				B = toCanonicalId(B);
+				if(A === B){
+					alert('第 '+(idx+1)+' 桌的兩個欄位為同一位玩家，請修正。');
+					return;
+				}
+				if(used[A] || used[B]){
+					alert('玩家 '+A+' 或 '+B+' 在多個桌次中出現，請檢查。');
+					return;
+				}
+				used[A] = 1; used[B] = 1;
+				tables[idx] = { type:'MATCH', A:A, B:B };
+			}
+		}
+
+		// 檢查 BYE 數量是否合理（奇數玩家一定要一個 BYE；偶數則不應有 BYE）
+		if(activeCount % 2 === 1){
+			if(byeCount !== 1){
+				alert('目前未棄權玩家為奇數，必須且只能指定一桌 BYE（在任一欄輸入 BYE）。');
+				return;
+			}
+		} else {
+			if(byeCount !== 0){
+				alert('目前未棄權玩家為偶數，不應存在 BYE 桌，請移除 BYE 設定。');
+				return;
+			}
+		}
+
+		var roundIdx = state.round - 1;
+		var keys = Object.keys(tables).map(function(x){return parseInt(x,10);}).sort(function(a,b){return a-b;});
+		var newList = [];
+
+		for(var i3=0;i3<keys.length;i3++){
+			var tIndex = keys[i3];
+			var v2 = tables[tIndex];
+			if(v2.type === 'BYE'){
+				newList.push({ a:v2.player, b:'BYE', table:newList.length+1, result:'BYE' });
+			} else if(v2.type === 'MATCH'){
+				newList.push({ a:v2.A, b:v2.B, table:newList.length+1, result:null });
+			}
+		}
+
+		state.pairings[roundIdx] = newList;
+		editingPairings=false;
+		saveState();
+		recomputeFromScratch();
+		renderAll();
+	}
+
+	function onShuffleSeeds(){
+		if(!state.players||state.players.length<2){ alert('玩家不足，無需洗牌'); return; }
+		if(state.round>0){ if(!confirm('比賽已開始。此動作只會重新隨機分配每位玩家的 seed（同分排序用），不會改變已完成的配對與積分。要繼續嗎？')) return; }
+		var ids=state.players.map(function(p){return p.id;});
+		for(var i4=ids.length-1;i4>0;i4--){
+			var j;
+			if(window.crypto&&crypto.getRandomValues){ var buf=new Uint32Array(1); crypto.getRandomValues(buf); j=buf[0]%(i4+1);}
+			else { j=Math.floor(Math.random()*(i4+1)); }
+			var tmp=ids[i4]; ids[i4]=ids[j]; ids[j]=tmp;
+		}
+		var rankMap={}; for(var k=0;k<ids.length;k++){ rankMap[ids[k]]=k+1; }
+		for(var t3=0;t3<state.players.length;t3++){ state.players[t3].seed=rankMap[state.players[t3].id]; }
+		saveState(); renderAll(); alert('已完成隨機洗牌');
+	}
+
+	document.addEventListener('DOMContentLoaded', function(){ normalizePlayers(); recomputeFromScratch(); renderAll(); bindCoreHandlers(); });
+})();
+</script>
+</body>
+</html>
