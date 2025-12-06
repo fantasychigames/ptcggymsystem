@@ -150,12 +150,12 @@
 				<button class="btn warn" id="editPairs">手動調整配對</button>
 				<button class="btn" id="shufflePlayers">隨機洗牌（抽籤）</button>
 				<label class="row small">字體：
-				<select id="fontSize">
-				<option value="0.9">小</option>
-				<option value="1" selected>中</option>
-				<option value="1.15">大</option>
-				<option value="1.3">特大</option>
-				</select>
+					<select id="fontSize">
+						<option value="0.9">小</option>
+						<option value="1" selected>中</option>
+						<option value="1.15">大</option>
+						<option value="1.3">特大</option>
+					</select>
 				</label>
 				<button class="btn good" id="exportCsv">匯出 CSV</button>
 				<button class="btn" id="exportSave">存檔</button>
@@ -215,7 +215,16 @@
 			<h2>玩家名單</h2>
 			<table id="playersTable">
 				<thead>
-					<tr><th>#</th><th>Player ID</th><th>Alphabet Name</th><th>MP</th><th>Buchholz</th><th>Cumulative</th><th class="nowrap">操作</th></tr>
+					<tr>
+						<th>#</th>
+						<th>Player ID</th>
+						<th>Alphabet Name</th>
+						<th>MP</th>
+						<th>Opp MP</th>
+						<th>Def Pts</th>
+						<th>Opp-Opp MP</th>
+						<th class="nowrap">操作</th>
+					</tr>
 				</thead>
 				<tbody></tbody>
 			</table>
@@ -242,6 +251,7 @@
 	function saveState(){ localStorage.setItem('poke_swiss', JSON.stringify(state)); }
 	function loadState(){ try{ return JSON.parse(localStorage.getItem('poke_swiss')||'null'); }catch(e){ return null; } }
 	function esc(s){ return String(s||'').replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c];}); }
+
 	function normalizePlayers(){
 		if(!Array.isArray(state.players)) state.players=[];
 		for(var i=0;i<state.players.length;i++){
@@ -253,16 +263,17 @@
 			if(typeof p.cumulative!=='number') p.cumulative=0;
 			if(typeof p.dropped!=='boolean') p.dropped=false;
 			if(typeof p.seed!=='number') p.seed=i+1;
-			// 確保累進分歷史記錄是陣列，以利於舊存檔載入
 			if(!Array.isArray(p.cumulativeHistory)) p.cumulativeHistory=[];
+			if(typeof p.defeatedPoints!=='number') p.defeatedPoints = 0;
+			if(typeof p.oppOppPoints!=='number') p.oppOppPoints = 0;
 		}
 	}
 	function getPlayer(id){ for(var i=0;i<state.players.length;i++){ if(state.players[i].id===id) return state.players[i]; } return null; }
+
 	function applyFontScale(){
 		var s = state.fontScale || 1;
 		document.documentElement.style.setProperty('--font-scale', s);
 		if(els.fontSize){
-			// 保證選單顯示跟 state 一致
 			els.fontSize.value = String(s);
 		}
 	}
@@ -270,49 +281,79 @@
 	function bindCoreHandlers(){
 		refreshEls();
 		if(els.parse && !els.parse.__bound){ els.parse.__bound=true; els.parse.addEventListener('click', onBulkAdd); }
-		if(els.clearAll && !els.clearAll.__bound){ els.clearAll.__bound=true; els.clearAll.addEventListener('click', function(){ if(confirm('確定要清空玩家名單？')){ state.players=[]; state.round=0; state.pairings=[]; saveState(); renderAll(); } }); }
-		if(els.applyRounds && !els.applyRounds.__bound){ els.applyRounds.__bound=true; els.applyRounds.addEventListener('click', function(){ state.roundsPlanned=Math.max(1,parseInt(els.roundsInput.value||'1',10)); saveState(); renderAll(); }); }
+		if(els.clearAll && !els.clearAll.__bound){ els.clearAll.__bound=true; els.clearAll.addEventListener('click', function(){
+			if(confirm('確定要清空玩家名單？')){
+				state.players=[]; state.round=0; state.pairings=[];
+				saveState(); renderAll();
+			}
+		});}
+		if(els.applyRounds && !els.applyRounds.__bound){ els.applyRounds.__bound=true; els.applyRounds.addEventListener('click', function(){
+			state.roundsPlanned=Math.max(1,parseInt(els.roundsInput.value||'1',10)); saveState(); renderAll();
+		});}
 		if(els.makePairs && !els.makePairs.__bound){ els.makePairs.__bound=true; els.makePairs.addEventListener('click', onMakePairs); }
 		if(els.exportCsv && !els.exportCsv.__bound){ els.exportCsv.__bound=true; els.exportCsv.addEventListener('click', onExportCsv); }
-		if(els.resetEvent && !els.resetEvent.__bound){ els.resetEvent.__bound=true; els.resetEvent.addEventListener('click', function(){ if(confirm('重置整個賽事（保留玩家）？這會清除所有對戰與積分。')) resetEvent(); }); }
-		if(els.eventName && !els.eventName.__bound){ els.eventName.__bound=true; els.eventName.addEventListener('input', function(){ state.eventName=els.eventName.value; saveState(); }); }
+		if(els.resetEvent && !els.resetEvent.__bound){ els.resetEvent.__bound=true; els.resetEvent.addEventListener('click', function(){
+			if(confirm('重置整個賽事（保留玩家）？這會清除所有對戰與積分。')) resetEvent();
+		});}
+		if(els.eventName && !els.eventName.__bound){ els.eventName.__bound=true; els.eventName.addEventListener('input', function(){
+			state.eventName=els.eventName.value; saveState();
+		});}
 		if(els.exportSave && !els.exportSave.__bound){ els.exportSave.__bound=true; els.exportSave.addEventListener('click', onExportSave); }
-		if(els.importSave && !els.importSave.__bound){ els.importSave.__bound=true; els.importSave.addEventListener('click', function(){ if(els.importFile) els.importFile.click(); }); }
+		if(els.importSave && !els.importSave.__bound){ els.importSave.__bound=true; els.importSave.addEventListener('click', function(){
+			if(els.importFile) els.importFile.click();
+		});}
 		if(els.importFile && !els.importFile.__bound){ els.importFile.__bound=true; els.importFile.addEventListener('change', onImportSave); }
 		if(els.btnLookup && !els.btnLookup.__bound){ els.btnLookup.__bound=true; els.btnLookup.addEventListener('click', doLookup); }
 		if(els.tableSearch && !els.tableSearch.__bound){ els.tableSearch.__bound=true; els.tableSearch.addEventListener('keydown', function(e){ if(e.key==='Enter') doLookup(); }); }
 		if(els.btnSeating && !els.btnSeating.__bound){ els.btnSeating.__bound=true; els.btnSeating.addEventListener('click', openSeatingBoard); }
-		if(els.editPairs && !els.editPairs.__bound){ els.editPairs.__bound=true; els.editPairs.addEventListener('click', function(){ if(!state.round){ alert('尚未有配對可調整'); return; } editingPairings=!editingPairings; renderAll(); }); }
+		if(els.editPairs && !els.editPairs.__bound){ els.editPairs.__bound=true; els.editPairs.addEventListener('click', function(){
+			if(!state.round){ alert('尚未有配對可調整'); return; } editingPairings=!editingPairings; renderAll();
+		});}
 		if(els.shufflePlayers && !els.shufflePlayers.__bound){ els.shufflePlayers.__bound=true; els.shufflePlayers.addEventListener('click', onShuffleSeeds); }
 		if(els.fontSize && !els.fontSize.__bound){
 			els.fontSize.__bound = true;
 			els.fontSize.addEventListener('change', function(){
-			var v = parseFloat(this.value) || 1;
-			state.fontScale = v;
-			saveState();
-			applyFontScale();
+				var v = parseFloat(this.value) || 1;
+				state.fontScale = v;
+				saveState();
+				applyFontScale();
 			});
 		}
 
-		// —— 事件委派（避免每次 render 重綁） ——
+		// 事件委派（搭配 closest，避免按子元素失效）
 		if(!document.__delegated){
 			document.__delegated = true;
 			document.addEventListener('click', function(e){
-				var t = e.target;
-				if(!t) return;
-				if(t.matches('[data-result]')){
-					var r = parseInt(t.getAttribute('data-round'),10);
-					var i = parseInt(t.getAttribute('data-table'),10);
-					var v = t.getAttribute('data-result');
+				if(!e.target) return;
+
+				// 勝負按鈕
+				var btnResult = e.target.closest('[data-result]');
+				if(btnResult){
+					var r = parseInt(btnResult.getAttribute('data-round'),10);
+					var i = parseInt(btnResult.getAttribute('data-table'),10);
+					var v = btnResult.getAttribute('data-result');
 					recordResult(r,i,v);
-				}else if(t.matches('[data-reset]')){
-					var r2 = parseInt(t.getAttribute('data-round'),10);
-					var i2 = parseInt(t.getAttribute('data-table'),10);
+					return;
+				}
+
+				// 清除結果
+				var btnReset = e.target.closest('[data-reset]');
+				if(btnReset){
+					var r2 = parseInt(btnReset.getAttribute('data-round'),10);
+					var i2 = parseInt(btnReset.getAttribute('data-table'),10);
 					recordResult(r2,i2,'CLR');
-				}else if(t.id==='saveEditedPairs'){
+					return;
+				}
+
+				// 手動配對儲存 / 取消
+				if(e.target.closest('#saveEditedPairs')){
 					saveEditedPairings();
-				}else if(t.id==='cancelEditedPairs'){
-					editingPairings=false; renderAll();
+					return;
+				}
+				if(e.target.closest('#cancelEditedPairs')){
+					editingPairings=false;
+					renderAll();
+					return;
 				}
 			}, false);
 		}
@@ -333,7 +374,21 @@
 				else if(line.indexOf('，')>=0){ var ab3=line.split('，'); id=(ab3[0]||'').trim(); name=(ab3[1]||'').trim(); }
 				else { var parts=line.split(/\s+/); id=(parts.shift()||'').trim(); name=(parts.join(' ')||'').trim(); }
 				if(!id) continue; if(seen[id]) continue; seen[id]=1;
-				state.players.push({ id:id, name:name, points:0, opponents:[], results:[], seed: nextSeedBase + added + 1, buchholz:0, cumulative:0, dropped:false, cumulativeHistory:[] });
+
+				state.players.push({
+					id:id,
+					name:name,
+					points:0,
+					opponents:[],
+					results:[],
+					seed: nextSeedBase + added + 1,
+					buchholz:0,
+					cumulative:0,
+					cumulativeHistory:[],
+					defeatedPoints:0,
+					oppOppPoints:0,
+					dropped:false
+				});
 				added++;
 			}
 			if(els.bulk) els.bulk.value='';
@@ -342,119 +397,119 @@
 		}catch(err){ console.error(err); alert('加入玩家時發生錯誤：'+(err&&err.message?err.message:String(err))); }
 	}
 
+	// 排序規則
 	function comparePlayers(a,b){
-		if(b.points!==a.points) return b.points-a.points;
-		if((b.buchholz||0)!==(a.buchholz||0)) return (b.buchholz||0)-(a.buchholz||0);
-		if((b.cumulative||0)!==(a.cumulative||0)) return (b.cumulative||0)-(a.cumulative||0);
-		return (a.seed||0)-(b.seed||0);
+		// 1. 勝場積分
+		if(b.points !== a.points) return b.points - a.points;
+
+		// 2. 對手 MP 總和（Buchholz）
+		var aOpp = a.buchholz || 0;
+		var bOpp = b.buchholz || 0;
+		if(bOpp !== aOpp) return bOpp - aOpp;
+
+		// 3. Defeated Players' Point
+		var aDef = a.defeatedPoints || 0;
+		var bDef = b.defeatedPoints || 0;
+		if(bDef !== aDef) return bDef - aDef;
+
+		// 4. 對手的對手 MP 總和
+		var aOO = a.oppOppPoints || 0;
+		var bOO = b.oppOppPoints || 0;
+		if(bOO !== aOO) return bOO - aOO;
+
+		// 5. seed（原始抽籤順序）當最後保底
+		return (a.seed || 0) - (b.seed || 0);
 	}
 
+	// 瑞士制自動配對
 	function swissPairings(players){
-	// 只取未棄權玩家並依目前排名排序
-	var active = players.filter(function(p){return !p.dropped;});
-	var ranked = active.slice().sort(comparePlayers);
+		// 只取未棄權玩家並依目前排名排序
+		var active = players.filter(function(p){return !p.dropped;});
+		var ranked = active.slice().sort(comparePlayers);
 
-	// 決定本輪 BYE（盡量給到目前沒拿過 BYE 且分數最低的人）
-	var byeId = null;
-	if(ranked.length % 2 === 1){
-		var cand = ranked.slice().sort(function(a,b){return (a.points||0)-(b.points||0);});
-		var pick = null;
-		for(var i=0;i<cand.length;i++){
-			if((cand[i].opponents||[]).indexOf('BYE')===-1){ pick=cand[i]; break; }
-		}
-		if(!pick) pick=cand[0];
-		byeId = pick.id;
-	}
-
-	// 回溯法：嚴格禁止重複對手；同時盡量選分差最小
-	var pool = ranked.filter(function(p){ return p.id !== byeId; });
-
-	function havePlayed(pa, pb){
-		return (pa.opponents||[]).indexOf(pb.id)!==-1;
-	}
-	function scoreDiff(a,b){
-		return Math.abs((a.points||0)-(b.points||0));
-	}
-
-	// 建立一份 map 方便 O(1) 取得 player 物件
-	var idMap = {}; players.forEach(function(p){ idMap[p.id]=p; });
-
-	// 依目前排名由上而下嘗試配對（可調整策略）
-	var order = pool.slice();
-
-	// 回溯
-	var used = {};
-	var pairs = [];
-
-	function dfs(idx){
-		// 都配完就成功
-		if(idx >= order.length) return true;
-
-		// 找下一個還沒被用掉的人當左邊 A
-		while(idx < order.length && used[order[idx].id]) idx++;
-		if(idx >= order.length) return true;
-
-		var a = order[idx];
-		used[a.id] = true;
-
-		// 候選對手：未使用、未交手過，依分差由小到大
-		var cands = [];
-		for(var j=0;j<order.length;j++){
-			var b = order[j];
-			if(a.id===b.id || used[b.id]) continue;
-			if(!havePlayed(idMap[a.id], idMap[b.id])){
-				cands.push(b);
+		// 決定本輪 BYE
+		var byeId = null;
+		if(ranked.length % 2 === 1){
+			var cand = ranked.slice().sort(function(a,b){return (a.points||0)-(b.points||0);});
+			var pick = null;
+			for(var i=0;i<cand.length;i++){
+				if((cand[i].opponents||[]).indexOf('BYE')===-1){ pick=cand[i]; break; }
 			}
+			if(!pick) pick=cand[0];
+			byeId = pick.id;
 		}
-		cands.sort(function(x,y){
-			return scoreDiff(a,x) - scoreDiff(a,y);
-		});
 
-		// 若完全沒有不曾交手的對手，就退一步：允許「一次」最小分差的重配（極少見）
-		// 但我們先嘗試真正的 0-rematch 解空間：若失敗再考慮這個 fallback
-		function tryWithCandidates(list){
-			for(var k=0;k<list.length;k++){
-				var b = list[k];
-				used[b.id] = true;
-				pairs.push({a:a.id, b:b.id});
-				if(dfs(idx+1)) return true;
-				pairs.pop();
-				used[b.id] = false;
+		var pool = ranked.filter(function(p){ return p.id !== byeId; });
+
+		function havePlayed(pa, pb){
+			return (pa.opponents||[]).indexOf(pb.id)!==-1;
+		}
+		function scoreDiff(a,b){
+			return Math.abs((a.points||0)-(b.points||0));
+		}
+
+		var idMap = {}; players.forEach(function(p){ idMap[p.id]=p; });
+		var order = pool.slice();
+		var used = {};
+		var pairs = [];
+
+		function dfs(idx){
+			if(idx >= order.length) return true;
+			while(idx < order.length && used[order[idx].id]) idx++;
+			if(idx >= order.length) return true;
+
+			var a = order[idx];
+			used[a.id] = true;
+
+			var cands = [];
+			for(var j=0;j<order.length;j++){
+				var b = order[j];
+				if(a.id===b.id || used[b.id]) continue;
+				if(!havePlayed(idMap[a.id], idMap[b.id])){
+					cands.push(b);
+				}
 			}
+			cands.sort(function(x,y){
+				return scoreDiff(a,x) - scoreDiff(a,y);
+			});
+
+			function tryWithCandidates(list){
+				for(var k=0;k<list.length;k++){
+					var b = list[k];
+					used[b.id] = true;
+					pairs.push({a:a.id, b:b.id});
+					if(dfs(idx+1)) return true;
+					pairs.pop();
+					used[b.id] = false;
+				}
+				return false;
+			}
+
+			if(tryWithCandidates(cands)){
+				return true;
+			}
+
+			used[a.id] = false;
 			return false;
 		}
 
-		// 先嘗試完全不重複對手
-		if(tryWithCandidates(cands)){
-			return true;
+		dfs(0);
+		if(pairs.length*2 !== pool.length){
+			alert('本輪自動配對找不到「零重配」的完整解，請改用「手動調整配對」。');
+			return [];
 		}
 
-		// 回溯 A
-		used[a.id] = false;
-		return false;
-	}
+		var matches = [];
+		for(var i3=0;i3<pairs.length;i3++){
+			var m = pairs[i3];
+			matches.push({a:m.a,b:m.b,table:matches.length+1,result:null});
+		}
 
-	dfs(0);
-	if(pairs.length*2 !== pool.length){
-		alert('本輪自動配對找不到「零重配」的完整解，請改用「手動調整配對」。');
-		// 退回「同分鄰近」的半成品（避免整場停住），或直接 return 空陣列：
-		return [];
+		if(byeId){
+			matches.push({a:byeId,b:'BYE',table:matches.length+1,result:'BYE'});
+		}
+		return matches;
 	}
-
-	// 轉成輸出格式，桌號按照加入順序產生
-	var matches = [];
-	for(var i3=0;i3<pairs.length;i3++){
-		var m = pairs[i3];
-		matches.push({a:m.a,b:m.b,table:matches.length+1,result:null});
-	}
-
-	// BYE 放在最後一桌（重點：table 用 matches.length+1）
-	if(byeId){
-		matches.push({a:byeId,b:'BYE',table:matches.length+1,result:'BYE'});
-	}
-	return matches;
-}
-
 
 	function onMakePairs(){
 		if(state.round>0){
@@ -472,9 +527,7 @@
 		var roundNum=state.round+1;
 		var pairs=swissPairings(state.players);
 
-		// ★ 如果這輪沒有產生任何配對，就不要前進
 		if(!pairs || !pairs.length){
-			// swissPairings 裡已經有 alert，這裡只是雙保險
 			return;
 		}
 
@@ -494,17 +547,21 @@
 	function recomputeFromScratch(){
 		var idMap={};
 		state.players.forEach(function(p){
-			// 初始化/重置玩家核心數據
-			p.points=0;p.opponents=[];p.results=[];p.buchholz=0;p.cumulative=0;
-			p.cumulativeHistory=[]; // 重置累進分歷史
-			idMap[p.id]=p;
+			p.points = 0;
+			p.opponents = [];
+			p.results = [];
+			p.buchholz = 0;
+			p.cumulative = 0;
+			p.cumulativeHistory = [];
+			p.defeatedPoints = 0;
+			p.oppOppPoints = 0;
+			idMap[p.id] = p;
 		});
-		
-		// 逐輪計算分數和對戰紀錄
+
 		for(var r=0;r<state.round;r++){
 			var list=state.pairings[r]||[];
 			for(var i=0;i<list.length;i++){
-				var m=list[i], pa=idMap[m.a], pb=idMap[m.b]; // 修正點：確保 pa 和 pb 在此範圍內被宣告
+				var m=list[i], pa=idMap[m.a], pb=idMap[m.b];
 				if(m.result==='BYE'&&pa){
 					pa.points+=BYE_POINTS; pa.opponents.push('BYE'); pa.results.push('WIN');
 				} else if(m.result==='A'&&pa&&pb){
@@ -515,32 +572,93 @@
 					pa.points+=DOUBLE_LOSS_POINTS; pb.points+=DOUBLE_LOSS_POINTS; pa.results.push('DLOSS'); pb.results.push('DLOSS'); pa.opponents.push(pb.id); pb.opponents.push(pa.id);
 				}
 			}
-			
-			// 累進積分：記錄本輪結束時的總積分
 			state.players.forEach(function(p){
 				p.cumulativeHistory.push(p.points);
 			});
 		}
-		
-		// 計算最終累進積分總和
+
 		state.players.forEach(function(p){
 			p.cumulative = (p.cumulativeHistory || []).reduce(function(acc, val){ return acc + val; }, 0);
 		});
-		recomputeTiebreakers(); // 僅計算 Buchholz
+		recomputeTiebreakers();
 	}
 
 	function recomputeTiebreakers(){
-		var idMap={}; state.players.forEach(function(p){ idMap[p.id]=p; });
+		var idMap = {};
+		state.players.forEach(function(p){ idMap[p.id] = p; });
+
 		state.players.forEach(function(p){
-			// Buchholz Score (Opponent Match Points)
-			var s=0; (p.opponents||[]).forEach(function(oid){ if(oid!=='BYE') s += (idMap[oid]&&idMap[oid].points)||0; });
-			p.buchholz=s;
+			p.buchholz = 0;
+			p.defeatedPoints = 0;
+			p.oppOppPoints = 0;
+			p._oppSet = {};
+		});
+
+		// Buchholz + 對手集合
+		state.players.forEach(function(p){
+			var opps = p.opponents || [];
+			var oppSet = p._oppSet;
+			for(var i=0;i<opps.length;i++){
+				var oid = opps[i];
+				if(oid === 'BYE') continue;
+				var opp = idMap[oid];
+				if(!opp) continue;
+				p.buchholz += (opp.points || 0);
+				oppSet[oid] = true;
+			}
+		});
+
+		// Defeated Players' Points（用最終 MP）
+		for(var r=0; r<state.round; r++){
+			var list = state.pairings[r] || [];
+			for(var i=0;i<list.length;i++){
+				var m = list[i];
+				if(!m || m.result === 'BYE' || m.result === 'DD') continue;
+				var pa = idMap[m.a];
+				var pb = idMap[m.b];
+				if(!pa || !pb) continue;
+
+				if(m.result === 'A'){
+					pa.defeatedPoints += (pb.points || 0);
+				}else if(m.result === 'B'){
+					pb.defeatedPoints += (pa.points || 0);
+				}
+			}
+		}
+
+		// Opponents' Opponents' Points
+		state.players.forEach(function(p){
+			var sum2 = 0;
+			var oppSet = p._oppSet || {};
+
+			for(var oid in oppSet){
+				if(!oppSet.hasOwnProperty(oid)) continue;
+				var opp = idMap[oid];
+				if(!opp) continue;
+
+				var innerOpps = opp.opponents || [];
+				var innerSet = {};
+
+				for(var j=0;j<innerOpps.length;j++){
+					var oid2 = innerOpps[j];
+					if(oid2 === 'BYE' || oid2 === p.id) continue;
+					innerSet[oid2] = true;
+				}
+
+				for(var oid2 in innerSet){
+					if(!innerSet.hasOwnProperty(oid2)) continue;
+					var p2 = idMap[oid2];
+					if(p2) sum2 += (p2.points || 0);
+				}
+			}
+
+			p.oppOppPoints = sum2;
+			delete p._oppSet;
 		});
 	}
 
 	function onExportCsv(){
 		var ranked = state.players.slice().sort(comparePlayers);
-		// 只保留四個欄位
 		var rows = [["Ranking","Player ID","Alphabet Name","Match Point"]];
 		ranked.forEach(function(p,i){
 			rows.push([ String(i+1), p.id, p.name || '', String(p.points) ]);
@@ -566,7 +684,6 @@
 		a.click();
 		URL.revokeObjectURL(a.href);
 	}
-
 
 	function onExportSave(){
 		try{
@@ -602,8 +719,21 @@
 	}
 
 	function resetEvent(){
-		state.players.forEach(function(p){ p.points=0;p.opponents=[];p.results=[];p.buchholz=0;p.cumulative=0; p.cumulativeHistory=[]; });
-		state.pairings=[]; state.round=0; saveState(); renderAll();
+		state.players.forEach(function(p){
+			p.points=0;
+			p.opponents=[];
+			p.results=[];
+			p.buchholz=0;
+			p.cumulative=0;
+			p.cumulativeHistory=[];
+			p.defeatedPoints=0;
+			p.oppOppPoints=0;
+			p.dropped=false;
+		});
+		state.pairings=[];
+		state.round=0;
+		saveState();
+		renderAll();
 	}
 
 	function completedRounds(){
@@ -619,7 +749,7 @@
 	function renderMatch(roundIndex, tableIndex, m){
 		var pa=getPlayer(m.a), pb=getPlayer(m.b);
 
-		// —— BYE 桌維持顯示玩家資訊 ——
+		// BYE 桌只顯示資訊
 		if(m.result==='BYE'){
 			return (
 				'<div class="card" id="table-'+(roundIndex+1)+'-'+(tableIndex+1)+'" style="margin-bottom:12px">'+
@@ -633,7 +763,6 @@
 			);
 		}
 
-		// —— 結果顯示內容（只用在下方按鈕區，排在清除結果後面） ——
 		var resultTag = '';
 		if(m.result === 'A' && pa){
 			resultTag =
@@ -651,13 +780,10 @@
 
 		var s='';
 		s+='<div class="card" id="table-'+(roundIndex+1)+'-'+(tableIndex+1)+'" style="margin-bottom:12px">';
-
-		// 上排：只顯示桌次
 		s+='<div class="row" style="justify-content:space-between">';
 		s+='<div class="match-line"><b>桌次 '+(tableIndex+1)+'</b></div>';
 		s+='</div>';
 
-		// 下排：操作按鈕（ID＋姓名加強排版）＋ 清除結果 ＋ 結果顯示
 		s+='<div class="row" style="margin-top:6px">';
 
 		// A 勝按鈕
@@ -678,20 +804,19 @@
 		 + '<div class="btn-label-sub">勝（+'+WIN_POINTS+'）</div>'
 		 +'</button>';
 
-		// 雙敗按鈕
+		// 雙敗
 		s+='<button class="btn" data-round="'+roundIndex+'" data-table="'+tableIndex+'" data-result="DD">雙敗（0 / 0）</button>';
 
-		// 清除結果按鈕
+		// 清除結果
 		if(m.result){
 			s+='<button class="btn ghost" data-round="'+roundIndex+'" data-table="'+tableIndex+'" data-reset="1">清除結果</button>';
-			// 清除結果後面接上結果顯示
 			if(resultTag){
 				s+='<span>'+resultTag+'</span>';
 			}
 		}
 
-		s+='</div>'; // row
-		s+='</div>'; // card
+		s+='</div>';
+		s+='</div>';
 		return s;
 	}
 
@@ -724,8 +849,7 @@
 	}
 
 	function renderAll(){
-		bindCoreHandlers();
-		applyFontScale();
+		refreshEls();
 		var n=state.players.length;
 		var suggested = n ? _suggestRounds(n) : 1;
 		if(els.suggestedRounds) els.suggestedRounds.textContent=suggested;
@@ -737,7 +861,8 @@
 		var ranked=state.players.slice().sort(comparePlayers);
 
 		// 玩家表
-		var tb=''; for(var i=0;i<ranked.length;i++){
+		var tb='';
+		for(var i=0;i<ranked.length;i++){
 			var p=ranked[i];
 			tb+='<tr>'
 			  +'<td>'+(i+1)+'</td>'
@@ -745,10 +870,11 @@
 			  +'<td><input data-id="'+esc(p.id)+'" data-field="name" value="'+esc(p.name||'')+'" placeholder="名稱"/></td>'
 			  +'<td>'+(p.points||0)+'</td>'
 			  +'<td>'+(p.buchholz||0)+'</td>'
-			  +'<td>'+(p.cumulative||0)+'</td>'
+			  +'<td>'+(p.defeatedPoints||0)+'</td>'
+			  +'<td>'+(p.oppOppPoints||0)+'</td>'
 			  +'<td>'+(p.dropped? '<span class="pill">已棄權</span> ':'')
-			  +'<button class="btn ghost small" data-action="drop" data-id="'+esc(p.id)+'">'+(p.dropped?'復出':'棄權')+'</button> '
-			  +'<button class="btn ghost small" data-action="remove" data-id="'+esc(p.id)+'">刪除</button></td>'
+			  +  '<button class="btn ghost small" data-action="drop" data-id="'+esc(p.id)+'">'+(p.dropped?'復出':'棄權')+'</button> '
+			  +  '<button class="btn ghost small" data-action="remove" data-id="'+esc(p.id)+'">刪除</button></td>'
 			  +'</tr>';
 		}
 		if(els.playersTable) els.playersTable.innerHTML=tb;
@@ -819,7 +945,6 @@
 				  + '<span class="small muted">（直接輸入 Player ID，可自動提示；每位玩家僅可出現一次，若要 BYE 請輸入 BYE）</span>'
 				  +'</div>';
 
-				// datalist（未棄權玩家）
 				var activeMap={};
 				(state.players||[]).forEach(function(p){
 					if(!p.dropped) activeMap[p.id]=p;
@@ -835,7 +960,6 @@
 				dlHtml+='</datalist>';
 				html+=dlHtml;
 
-				// 每桌都用同一種：兩個輸入框，BYE 桌把一邊預設為 BYE
 				for(var t=0;t<list.length;t++){
 					var m=list[t];
 					var aVal = m.a || '';
@@ -866,7 +990,7 @@
 			}
 		}
 
-		// 歷史對戰（可修改過去結果）
+		// 歷史對戰
 		renderHistory();
 
 		// 排名表
@@ -879,7 +1003,11 @@
 					  '<td><span class="badge-id">'+esc(sp.id)+'</span></td>'+
 					  '<td><span class="name-strong">'+esc(sp.name||'')+'</span></td>'+
 					  '<td>'+(sp.points||0)+'</td>'+
-					  '<td class="small muted">Opp:'+(sp.buchholz||0)+'｜Cum:'+(sp.cumulative||0)+'</td>'+
+					  '<td class="small muted">'
+						+'Opp:'+(sp.buchholz||0)
+						+'｜Def:'+(sp.defeatedPoints||0)
+						+'｜OOpp:'+(sp.oppOppPoints||0)
+					  +'</td>'+
 					 '</tr>';
 		}
 		if(els.standings) els.standings.innerHTML =
@@ -920,7 +1048,7 @@
 		if(listBox) listBox.innerHTML='<table><thead><tr><th>Player ID</th><th>名稱</th><th>桌次</th><th>對手</th><th></th></tr></thead><tbody>'+rows+'</tbody></table>';
 	}
 
-	// —— 座位表（穩定版）：子窗僅含 HTML/CSS；由父窗渲染與刷新 ——
+	// 座位表視窗
 	function openSeatingBoard(){
 		var w = window.open('', '_blank');
 		if(!w){ alert('無法開啟新視窗，請允許彈出視窗。'); return; }
@@ -1003,7 +1131,6 @@
 			});
 		}
 
-
 		function renderSeatingInto(childWin){
 			if(!childWin || childWin.closed) return;
 			var doc = childWin.document;
@@ -1060,7 +1187,7 @@
 			renderSeatingInto(w);
 		}, 15000);
 
-		// localStorage 變更時即時刷新（跨分頁）
+		// localStorage 變更時即時刷新
 		function _storageHandler(){ if(!w || w.closed) return; renderSeatingInto(w); }
 		window.addEventListener('storage', _storageHandler);
 		var unload = function(){
@@ -1084,7 +1211,6 @@
 			rawTables[t][side] = val;
 		});
 
-		// 僅允許未棄權玩家
 		var activeMap = {};
 		(state.players||[]).forEach(function(p){ if(!p.dropped) activeMap[p.id]=p; });
 		var validIds = Object.keys(activeMap);
@@ -1095,13 +1221,13 @@
 			return false;
 		}
 		function toCanonicalId(x){
-			var xl=String(x).toLowerCase();
+		var xl=String(x).toLowerCase();
 			for(var i=0;i<validIds.length;i++){ if(validIds[i].toLowerCase()===xl) return validIds[i]; }
 			return x;
 		}
 
 		var used = {};
-		var tables = {}; // 正規化後的結果：{ tableIndex: { type:'MATCH', A, B } 或 { type:'BYE', player } }
+		var tables = {};
 		var byeCount = 0;
 		var activeCount = validIds.length;
 		var BYE_WORD = 'bye';
@@ -1116,19 +1242,15 @@
 			var aIsBye = A && A.toLowerCase() === BYE_WORD;
 			var bIsBye = B && B.toLowerCase() === BYE_WORD;
 
-			// 兩邊都空：不允許（避免桌子遺失）
 			if(!A && !B){
 				alert('第 '+(idx+1)+' 桌沒有輸入任何玩家 ID，請檢查。');
 				return;
 			}
-
-			// 同桌兩個都 BYE，不合理
 			if(aIsBye && bIsBye){
 				alert('第 '+(idx+1)+' 桌不能同時兩個 BYE。');
 				return;
 			}
 
-			// BYE 對局
 			if(aIsBye || bIsBye){
 				byeCount++;
 				var pid = aIsBye ? B : A;
@@ -1148,7 +1270,6 @@
 				used[pid] = 1;
 				tables[idx] = { type:'BYE', player: pid };
 			} else {
-				// 一般對局：必須兩邊都有玩家
 				if(!A || !B){
 					alert('第 '+(idx+1)+' 桌需輸入兩位玩家 ID（或其一為 BYE）。');
 					return;
@@ -1172,7 +1293,6 @@
 			}
 		}
 
-		// 檢查 BYE 數量是否合理（奇數玩家一定要一個 BYE；偶數則不應有 BYE）
 		if(activeCount % 2 === 1){
 			if(byeCount !== 1){
 				alert('目前未棄權玩家為奇數，必須且只能指定一桌 BYE（在任一欄輸入 BYE）。');
@@ -1221,7 +1341,13 @@
 		saveState(); renderAll(); alert('已完成隨機洗牌');
 	}
 
-	document.addEventListener('DOMContentLoaded', function(){ normalizePlayers(); recomputeFromScratch(); renderAll(); bindCoreHandlers(); });
+	document.addEventListener('DOMContentLoaded', function(){
+		normalizePlayers();
+		bindCoreHandlers();
+		applyFontScale();
+		recomputeFromScratch();
+		renderAll();
+	});
 })();
 </script>
 </body>
