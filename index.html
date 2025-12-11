@@ -608,23 +608,35 @@
 			}
 		});
 
-		// Defeated Players' Points（用最終 MP）
-		for(var r=0; r<state.round; r++){
-			var list = state.pairings[r] || [];
-			for(var i=0;i<list.length;i++){
-				var m = list[i];
-				if(!m || m.result === 'BYE' || m.result === 'DD') continue;
-				var pa = idMap[m.a];
-				var pb = idMap[m.b];
-				if(!pa || !pb) continue;
+// Defeated Players’ Points（同 MP 中，每打贏一個 +3）
+state.players.forEach(function(p){ p.defeatedPoints = 0; });
 
-				if(m.result === 'A'){
-					pa.defeatedPoints += (pb.points || 0);
-				}else if(m.result === 'B'){
-					pb.defeatedPoints += (pa.points || 0);
-				}
-			}
-		}
+for (var r = 0; r < state.round; r++) {
+    var list = state.pairings[r] || [];
+    for (var i = 0; i < list.length; i++) {
+        var m = list[i];
+        if (!m || m.result === 'BYE' || m.result === 'DD') continue;
+
+        var pa = idMap[m.a];
+        var pb = idMap[m.b];
+        if (!pa || !pb) continue;
+
+        // 只有同 MP 的玩家才計算 Defeated Players' Point
+        if (pa.points === pb.points) {
+
+            if (m.result === 'A') {
+                // A 打贏 B，且雙方 MP 一樣 → A 拿 3 分
+                pa.defeatedPoints += 3;
+            }
+
+            if (m.result === 'B') {
+                // B 打贏 A，且雙方 MP 一樣 → B 拿 3 分
+                pb.defeatedPoints += 3;
+            }
+        }
+    }
+}
+
 
 		// Opponents' Opponents' Points
 		state.players.forEach(function(p){
